@@ -73,7 +73,7 @@ def scrape_names(ceremony):
 	"""
 	"""
 
-	num_award = YEAR - FIRST
+	num_award = YEAR - FIRST + 1
 
 	if (num_award % 10) in suffixs.keys():
 		str_format = str(num_award) + suffixs[num_award % 10]
@@ -170,13 +170,13 @@ def print_results(ceremony):
 	"""
 	prints the results of the programs findings in a nice and neat format
 	"""
-	print ("\nThe {} held during {}" ).format(ceremony.name, YEAR)
+	print ("\nThe {} held during {}" .format(ceremony.name, YEAR))
 	if len(ceremony.hosts) > 1:
 		# multiple hosts
-		print ("Hosted by: {}").format(' and '.join(ceremony.hosts))
+		print ("Hosted by: {}".format(' and '.join(ceremony.hosts)))
 	else:
 		# only one host
-		print ("Hosted by: {}").format(ceremony.hosts[0])
+		print ("Hosted by: {}".format(ceremony.hosts[0]))
 	# for award in ceremony.awards:
 	# 	print ("For award: {}").format(award.title)
 	# 	print ("the presenters were: {}").format(" ".join(award.presenters))
