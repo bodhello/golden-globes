@@ -66,7 +66,7 @@ def CountsPhrase(dataset,phrase_length=2,delete_mode=0,word_dict_delete=''):
                 counts_phrase[tmp_phrase] += 1
             else:
                 counts_phrase[tmp_phrase] = 1
-    assert counts_phrase
+#    assert counts_phrase
     return counts_phrase
     
 def CreateDict(counts_phrase,counts_threshold):
@@ -169,15 +169,21 @@ else:
     print('enlarge the parameter FEATURE_MAX',len(list(set(uniqueness_check))))
     
 # =============================================================================
+# Get Names or Meaningful Phrases from the tweets
+# =============================================================================
+
+ 
+# =============================================================================
 # Get Winner for each award
 # =============================================================================
 word_dict_delete = ''
 for word in sorted_counts_award_word:
     word_dict_delete += word[0]
-word_dict_delete += 'goldenglobes'
+word_dict_delete += 'goldenglobeshttpsandwinnercongratulationsourwinnerwonwins'
 
-data_original_c = CleanData(data_original,1,1,[])
+data_original_c = list(set(CleanData(data_original,1,1,[])))
 
+pl_ratio = []
 for AWARD_INDEX in range(len(award_name)):
     data_award = data_original_c
     for i in range(len(award_feature_list[AWARD_INDEX])):
@@ -186,7 +192,7 @@ for AWARD_INDEX in range(len(award_name)):
         data_award = KeywordSearch(feature,data_award)
 # clean data
     data_award_c = data_award
-    for i in range(5):
+    for i in range(0):
         counts_phrase = CountsPhrase(data_award_c,2,0,'')
         sorted_counts_phrase = sorted(counts_phrase.items(),key=itemgetter(1),reverse=True)
         counts_len = len(sorted_counts_phrase)
@@ -194,12 +200,21 @@ for AWARD_INDEX in range(len(award_name)):
         word_dict = CreateDict(counts_phrase,counts_threshold)
         data_award_c = CleanData(data_award_c,2,1,word_dict)
 
-    counts_phrase = CountsPhrase(data_award_c,3,1,word_dict_delete)
-    sorted_counts_phrase = sorted(counts_phrase.items(),key=itemgetter(1),reverse=True)
-    if sorted_counts_phrase:
+    pl_value = 0
+    winner_name = ''
+    for pl in range(2,6):
+        counts_phrase = CountsPhrase(data_award_c,pl,1,word_dict_delete)
+        sorted_counts_phrase = sorted(counts_phrase.items(),key=itemgetter(1),reverse=True)
+        if sorted_counts_phrase:
+            tmp = sorted_counts_phrase[0][1]/sum(counts_phrase.values())
+            pl_ratio.append(tmp)
+            if pl_value < tmp:
+                winner_name = sorted_counts_phrase[0][0]
+                pl_value = tmp
+    if winner_name:
         print('****************************************************************',
               '\n AWARD NAME:',award_name_v[AWARD_INDEX],
-              '\n WINNER:',sorted_counts_phrase[0][0],'\n')
+              '\n WINNER:',winner_name,'\n')
     else:
         print('****************************************************************',
               '\n AWARD NAME:',award_name_v[AWARD_INDEX],
