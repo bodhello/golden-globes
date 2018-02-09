@@ -31,9 +31,12 @@ To Run:
 
 import os
 import re
-import ijson
+from operator import itemgetter
+from collections import defaultdict 
+import json
 import requests
 from bs4 import BeautifulSoup
+import numpy as np
 
 
 # GLOBAL DECLARATIONS
@@ -51,23 +54,92 @@ suffixs = {				# dict used to convert year to word for url
 
 
 class Ceremony(object):
+	"""
+	Represents the whole ceremony
+	"""
 	def __init__(self, year):
 		self.year = year
 		self.awards = []
 		self.hosts = []
+		self.name = ''
+
+	def __str__(self):
+		return ("\nThe {} held during {}" .format(ceremony.name, self.year))
 
 
+	def build_award_features(self):
+		"""	
+		"""
+
+		phrase_freqs = self.count_phrases(phrase_length=1)
+
+
+		# converts the phrase_freqs dictionary into a sorted list in ascending order
+		# it creates each index as a tuple with the val[0] being the phrase
+		# and val[1] being the frequency of that phrase
+		phrase_freqs_sorted = sorted(phrase_freqs.items(), key=itemgetter(1), reverse = False)
+
+
+		award_names = [award.title.split(' ') for award in self.awards]
+		features_list = [[] for i in range(len(award_names))]
+		min_len = np.zeros(len(award_names))
+		feature_max = 5
+
+		for val, freq in phrase_freqs_sorted:
+			# check if we found a total of feature_max features
+			if min(min_len) == feature_max: 
+				break
+
+			i = 0
+			while i < len(award_names):
+				# check if this value is in the award nam
+				if val.capitalize() in award_names[i]:
+					if min_len[i] < feature_max:
+						if val == 'Television':
+							features_list[i].append('(Television)|(TV)')
+						else:
+							features_list[i].append(val)
+						min_len[i] += 1
+				i += 1
+
+
+
+
+
+		# for i, award in enumerate(self.awards):
+		# 	print ("setting {} to have || features: {}".format(award.title.encode('utf-8'), features_list[i]))
+		# 	award.features_list = features_list[i]
+
+
+	def count_phrases(self, phrase_length=2):
+		"""
+		"""
+		phrase_freqs = defaultdict(lambda: 0)
+		for i in range(len(self.awards)):
+			words = re.findall(r'[a-zA-Z]+', self.awards[i].title)
+
+			for j in range(len(words) - phrase_length + 1):
+				tmp_phrase = ''
+				for k in range(phrase_length):
+					tmp_phrase += words[j+k].lower()
+					if k != phrase_length - 1:
+						tmp_phrase += ' '
+
+				phrase_freqs[tmp_phrase] += 1
+
+		return phrase_freqs
 
 
 class Award(object):
+	"""
+	Represents a single award
+	"""
 	def __init__(self, title):
 		self.title = title
 		self.presenters = []
 		self.nominees = []
 		self.winner = None
 		self.confidence = 0
-
-
 
 def scrape_names(ceremony):
 	"""
@@ -143,10 +215,6 @@ def scrape_names(ceremony):
 
 	return ceremony
 
-
-
-
-
 def parse_tweets():
 	"""
 	uses ijson to parse the json representation of the tweets. Since there are so
@@ -158,35 +226,21 @@ def parse_tweets():
 	path = cwd + '/' + EXT
 	f = open(path)
 
-	i = 0
-	for tweet in ijson.items(f, 'item'):
-		print (tweet)
-		i += 1
-		if i > 25: break
 
+	tweets = json.load(f)
 
-
-def print_results(ceremony):
-	"""
-	prints the results of the programs findings in a nice and neat format
-	"""
-	print ("\nThe {} held during {}" .format(ceremony.name, YEAR))
-	if len(ceremony.hosts) > 1:
-		# multiple hosts
-		print ("Hosted by: {}".format(' and '.join(ceremony.hosts)))
-	else:
-		# only one host
-		print ("Hosted by: {}".format(ceremony.hosts[0]))
-	# for award in ceremony.awards:
-	# 	print ("For award: {}").format(award.title)
-	# 	print ("the presenters were: {}").format(" ".join(award.presenters))
-	# 	print ("the nominees were: {}").format(" ".join(award.nominees))
-	# 	print ("the winner was: {}").format(award.winner)
+	# i = 0
+	# for tweet in ijson.items(f, 'item'):
+	# 	print (tweet)
+	# 	i += 1
+	# 	if i > 25: break
 
 
 if __name__ == "__main__":
 	ceremony = Ceremony(YEAR)
 	ceremony = scrape_names(ceremony)
+	ceremony.build_award_features()
+	print (ceremony)
 	# parse_tweets()
-	print_results(ceremony)
+	# print_results(ceremony)
 
