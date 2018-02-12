@@ -21,12 +21,12 @@ Parser to find:
 	4. Nominees
 	5. Winners
 
+	** Host(s) & Award Names are parsed from Wikipedia, all else is deduced from Twitter's tweets **
+ 
 
 To Run:
 	set the YEAR variable to the desired year in this file and then 
 	>> python parser.py
-
-
 """
 
 import os
@@ -74,7 +74,7 @@ class Ceremony(object):
 
 		will build out later to inclue all the findings 
 		"""
-		return ("\nThe {} held during {}" .format(ceremony.name, self.year))
+		return ("\nThe {} held during {}" .format(self.name, self.year))
 
 
 	def scrape_names(self):
@@ -102,10 +102,10 @@ class Ceremony(object):
 		# store in BeautifulSoup object to parse HTML DOM
 		soup = BeautifulSoup(c, "lxml")
 		
+
 		#
 		#	Find Awards 
 		#
-
 		awards_div = soup.find("div", {"aria-labelledby" : "Golden_Globe_Awards"})
 
 		awards = []
@@ -123,13 +123,9 @@ class Ceremony(object):
 					continue
 
 
-		# filter noise from awards list
-		awards_filtered = filter(lambda award: award.title.startswith('Golden Globe Award'), awards)
-		self.awards = awards_filtered 	# update ceremony object
+		awards_filtered = filter(lambda award: award.title.startswith("Golden Globe Award"), awards)	 # filter noise from awards list
+		self.awards = awards_filtered 	# update ceremony object's award attribute
 
-
-		# for a in awards_filtered:
-		# 	print (a.title)	
 
 		#
 		#	Find Host
@@ -147,7 +143,7 @@ class Ceremony(object):
 			except:
 				continue
 
-		# update ceremony object with host  
+		# update ceremony object's host attribute
 		self.hosts = hosts
 
 
@@ -289,10 +285,13 @@ def read_tweets():
 		tweets.append(tweet)
 	return tweets
 
+
+
 if __name__ == "__main__":
 	ceremony = Ceremony(YEAR)
 	ceremony.scrape_names()
 	ceremony.build_award_features()
 	# tweets = read_tweets()
+	# ceremony.parse_tweets(tweets)
 	print (ceremony)
 
