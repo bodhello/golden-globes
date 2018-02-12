@@ -43,8 +43,7 @@ import numpy as np
 
 YEAR = 2018 			# the year the ceremony we want to find info abotu
 FIRST = 1944 			# first ever golden globe
-EXT = 'gg2018.json'		# path to twitter data from current file
-
+EXT = '../gg2018.json'	# path to twitter data from current file
 suffixs = {				# dict used to convert year to word for url 
 
 	1: "st",
@@ -58,12 +57,15 @@ class Ceremony(object):
 	Represents the whole ceremony
 	"""
 	def __init__(self, year):
+		"""
+		initalized year to be year and populates the awards list, name string, and
+		host string using the scrape_names mehtod of the Ceremony class
+		"""
 		self.year = year
 		self.awards = []
 		self.hosts = []
 		self.name = ''
 		self.scrape_names()
-
 
 
 	def __str__(self):
@@ -77,6 +79,8 @@ class Ceremony(object):
 
 	def scrape_names(self):
 		"""
+		Uses wikipeadia page of the golden globes ceremony associated with the YEAR global variable.
+		Populates the ceremony object's awards, host and name attributes.  
 		"""
 
 		num_award = YEAR - FIRST + 1
@@ -145,8 +149,6 @@ class Ceremony(object):
 
 		# update ceremony object with host  
 		self.hosts = hosts
-
-
 
 
 	def build_award_features(self):
@@ -229,12 +231,34 @@ class Ceremony(object):
 		return phrase_freqs
 
 
+	def clean_words(self, data, mode, min_word_len=3, word_dict=[]):
+		"""
+		if mode set to 1: filters out all words in each data instance with words less than min_word_len
+		if mode set to not 1: filters out all words in each data instance if not present in word_dict
+		returns a list of 'clean' data
+		"""
+		clean_data = []
+		for inst in data:
 
-	# def parse_tweets(tweets):
-	# 	for award_idx in range(len(self.awards)):
+			if mode == 1:
+				words = filter(lambda w: len(w) >= min_word_len, inst.split(' '))
+			else:
+				words = filter(lambda w: w in word_dict, inst.split(' '))
 
-	# 		for i in range(len(self.awards[award_idx].features_list)):
+			if len(words):
+				clean_data.append(' '.join(words))
 
+		return clean_data
+
+
+	def parse_tweets(tweets):
+		"""
+
+		"""
+		# for award_idx in range(len(self.awards)):
+		# 	for i in range(len(self.awards[award_idx].features_list)):
+
+		pass
 
 
 class Award(object):
@@ -248,8 +272,6 @@ class Award(object):
 		self.winner = None
 		self.features_list = []
 		self.confidence = 0
-
-
 
 
 def read_tweets():
