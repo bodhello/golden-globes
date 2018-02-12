@@ -64,11 +64,19 @@ class Ceremony(object):
 		self.name = ''
 
 	def __str__(self):
+		"""
+		string representation of a ceremony
+
+		will build out later to inclue all the findings 
+		"""
 		return ("\nThe {} held during {}" .format(ceremony.name, self.year))
 
 
 	def build_award_features(self):
 		"""	
+		Creats a list of most uncommon words found in each award based on all words present in all awards.
+		Then sets each Award object in self.awards list to have the associated features list. 
+		Used to find most important words in each award which is then used for matching tweets to associated awards.
 		"""
 
 		phrase_freqs = self.count_phrases(phrase_length=1)
@@ -103,20 +111,34 @@ class Ceremony(object):
 				i += 1
 
 
+		for i, award in enumerate(self.awards):
+			# print ("setting {} to have || features: {}".format(award.title.encode('utf-8'), features_list[i]))
+			award.features_list = features_list[i]
+	
 
-
-
-		# for i, award in enumerate(self.awards):
-		# 	print ("setting {} to have || features: {}".format(award.title.encode('utf-8'), features_list[i]))
-		# 	award.features_list = features_list[i]
-
-
-	def count_phrases(self, phrase_length=2):
+	def remove_stop_words(self, words, stop_words):
 		"""
+		uses the stop_word string to remove all words represented in the stop_word string.
+		the stop_word string is 1-x number of words concatenated together. 
+		"""
+		clean_words = []
+		for word in words:
+			if not re.search(word, stop_words, flags=re.I):
+				clean_words.append(word)
+		return clean_words
+		
+
+	def count_phrases(self, phrase_length, stop_words=None):
+		"""
+		Builds a frequency distrobution of all combinations of words of size phrase_length present in the
+		given list, if one of the words present is in the stop_words then it will not be considered.
 		"""
 		phrase_freqs = defaultdict(lambda: 0)
 		for i in range(len(self.awards)):
 			words = re.findall(r'[a-zA-Z]+', self.awards[i].title)
+
+			if stop_words != None:
+            	words = self.remove_stop_words(words, stop_words)
 
 			for j in range(len(words) - phrase_length + 1):
 				tmp_phrase = ''
@@ -130,6 +152,14 @@ class Ceremony(object):
 		return phrase_freqs
 
 
+
+	# def parse_tweets(tweets):
+	# 	for award_idx in range(len(self.awards)):
+
+	# 		for i in range(len(self.awards[award_idx].features_list)):
+
+	
+
 class Award(object):
 	"""
 	Represents a single award
@@ -139,6 +169,7 @@ class Award(object):
 		self.presenters = []
 		self.nominees = []
 		self.winner = None
+		self.features_list = []
 		self.confidence = 0
 
 def scrape_names(ceremony):
@@ -215,32 +246,25 @@ def scrape_names(ceremony):
 
 	return ceremony
 
-def parse_tweets():
+def read_tweets():
 	"""
-	uses ijson to parse the json representation of the tweets. Since there are so
-	many tweets, ijson uses a generator allowing the program to not use all of its 
-	memory on storing the tweets
-
+	Reads in all the tweets into a list and returns the list. 
+	Uses the global EXT variable to find the data file.
 	"""
 	cwd = os.getcwd() 
 	path = cwd + '/' + EXT
 	f = open(path)
 
-
-	tweets = json.load(f)
-
-	# i = 0
-	# for tweet in ijson.items(f, 'item'):
-	# 	print (tweet)
-	# 	i += 1
-	# 	if i > 25: break
-
+	tweets_json = json.load(f)
+	tweets = []
+	for tweet in tweets_json:
+		tweets.append(tweet)
+	return tweets
 
 if __name__ == "__main__":
 	ceremony = Ceremony(YEAR)
 	ceremony = scrape_names(ceremony)
 	ceremony.build_award_features()
+	tweets = read_tweets()
 	print (ceremony)
-	# parse_tweets()
-	# print_results(ceremony)
 
