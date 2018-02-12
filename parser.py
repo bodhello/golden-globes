@@ -62,6 +62,9 @@ class Ceremony(object):
 		self.awards = []
 		self.hosts = []
 		self.name = ''
+		self.scrape_names()
+
+
 
 	def __str__(self):
 		"""
@@ -70,6 +73,80 @@ class Ceremony(object):
 		will build out later to inclue all the findings 
 		"""
 		return ("\nThe {} held during {}" .format(ceremony.name, self.year))
+
+
+	def scrape_names(self):
+		"""
+		"""
+
+		num_award = YEAR - FIRST + 1
+
+		if (num_award % 10) in suffixs.keys():
+			str_format = str(num_award) + suffixs[num_award % 10]
+		else:
+			str_format = str(num_award) + "th"
+
+		# update ceremony object's name 
+		self.name = str_format + " Golden Globe Awards"
+
+		
+		# make the web request and get the infromation from wiki page
+		url = 'https://en.wikipedia.org/wiki/{}_Golden_Globe_Awards'.format(str_format)
+		result = requests.get(url)
+		c = result.content
+
+		# store in BeautifulSoup object to parse HTML DOM
+		soup = BeautifulSoup(c, "lxml")
+		
+		#
+		#	Find Awards 
+		#
+
+		awards_div = soup.find("div", {"aria-labelledby" : "Golden_Globe_Awards"})
+
+		awards = []
+		tds = awards_div.find_all("td")
+		for td in tds:
+			lis = td.find_all("li")
+
+			for li in lis:
+				a = li.find("a")
+				try:
+					title = a["title"]
+					award = Award(title)
+					awards.append(award)
+				except:
+					continue
+
+
+		# filter noise from awards list
+		awards_filtered = filter(lambda award: award.title.startswith('Golden Globe Award'), awards)
+		self.awards = awards_filtered 	# update ceremony object
+
+
+		# for a in awards_filtered:
+		# 	print (a.title)	
+
+		#
+		#	Find Host
+		#
+		hosts = []
+		table = soup.find("table", {"class" : "infobox vevent"})
+		trs = table.find_all("tr")
+		for tr in trs:
+			try:
+				th = tr.find("th")
+				if th.text == "Hosted by":
+					a_tags = tr.find_all("a")
+					for a in a_tags:
+						hosts.append(a.text)
+			except:
+				continue
+
+		# update ceremony object with host  
+		self.hosts = hosts
+
+
 
 
 	def build_award_features(self):
@@ -85,7 +162,7 @@ class Ceremony(object):
 		# converts the phrase_freqs dictionary into a sorted list in ascending order
 		# it creates each index as a tuple with the val[0] being the phrase
 		# and val[1] being the frequency of that phrase
-		phrase_freqs_sorted = sorted(phrase_freqs.items(), key=itemgetter(1), reverse = False)
+		phrase_freqs_sorted = sorted(phrase_freqs.items(), key=itemgetter(1), reverse=False)
 
 
 		award_names = [award.title.split(' ') for award in self.awards]
@@ -100,7 +177,7 @@ class Ceremony(object):
 
 			i = 0
 			while i < len(award_names):
-				# check if this value is in the award nam
+				# check if this value is in the award name
 				if val.capitalize() in award_names[i]:
 					if min_len[i] < feature_max:
 						if val == 'Television':
@@ -138,7 +215,7 @@ class Ceremony(object):
 			words = re.findall(r'[a-zA-Z]+', self.awards[i].title)
 
 			if stop_words != None:
-            	words = self.remove_stop_words(words, stop_words)
+				words = self.remove_stop_words(words, stop_words)
 
 			for j in range(len(words) - phrase_length + 1):
 				tmp_phrase = ''
@@ -158,7 +235,7 @@ class Ceremony(object):
 
 	# 		for i in range(len(self.awards[award_idx].features_list)):
 
-	
+
 
 class Award(object):
 	"""
@@ -172,79 +249,8 @@ class Award(object):
 		self.features_list = []
 		self.confidence = 0
 
-def scrape_names(ceremony):
-	"""
-	"""
-
-	num_award = YEAR - FIRST + 1
-
-	if (num_award % 10) in suffixs.keys():
-		str_format = str(num_award) + suffixs[num_award % 10]
-	else:
-		str_format = str(num_award) + "th"
-
-	# update ceremony object's name 
-	ceremony.name = str_format + " Golden Globe Awards"
-
-	
-	# make the web request and get the infromation from wiki page
-	url = 'https://en.wikipedia.org/wiki/{}_Golden_Globe_Awards'.format(str_format)
-	result = requests.get(url)
-	c = result.content
-
-	# store in BeautifulSoup object to parse HTML DOM
-	soup = BeautifulSoup(c, "lxml")
-	
-	#
-	#	Find Awards 
-	#
-
-	awards_div = soup.find("div", {"aria-labelledby" : "Golden_Globe_Awards"})
-
-	awards = []
-	tds = awards_div.find_all("td")
-	for td in tds:
-		lis = td.find_all("li")
-
-		for li in lis:
-			a = li.find("a")
-			try:
-				title = a["title"]
-				award = Award(title)
-				awards.append(award)
-			except:
-				continue
 
 
-	# filter noise from awards list
-	awards_filtered = filter(lambda award: award.title.startswith('Golden Globe Award'), awards)
-	ceremony.awards = awards_filtered 	# update ceremony object
-
-
-	# for a in awards_filtered:
-	# 	print (a.title)	
-
-	#
-	#	Find Host
-	#
-	hosts = []
-	table = soup.find("table", {"class" : "infobox vevent"})
-	trs = table.find_all("tr")
-	for tr in trs:
-		try:
-			th = tr.find("th")
-			if th.text == "Hosted by":
-				a_tags = tr.find_all("a")
-				for a in a_tags:
-					hosts.append(a.text)
-		except:
-			continue
-
-	# update ceremony object with host  
-	ceremony.hosts = hosts
-
-
-	return ceremony
 
 def read_tweets():
 	"""
@@ -263,8 +269,8 @@ def read_tweets():
 
 if __name__ == "__main__":
 	ceremony = Ceremony(YEAR)
-	ceremony = scrape_names(ceremony)
+	ceremony.scrape_names()
 	ceremony.build_award_features()
-	tweets = read_tweets()
+	# tweets = read_tweets()
 	print (ceremony)
 
