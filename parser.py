@@ -60,7 +60,7 @@ regexs = {
 nominee_words   = 'nom'
 winner_words    = '(congr|win|won)'
 presenter_words = '(pre|present)'
-remove_words    = '(Best|Golden|Globe|Actor|Actress|Picture|Motion|Award|Year)'
+remove_words    = '(Best|Golden|Globe|Actor|Actress|Picture|Motion|Award|Year|Film|Animated|Feature)'
 
 
 
@@ -78,6 +78,8 @@ class Ceremony(object):
 		self.hosts = []
 		self.name = ''
 		self.scrape_names()
+		self.remove_words = self.build_remove_words()
+		# print ("setting remove words to be {}".format(self.remove_words.encode('utf-8')))
 
 
 	def __str__(self):
@@ -157,6 +159,20 @@ class Ceremony(object):
 
 		# update ceremony object's host attribute
 		self.hosts = hosts
+
+	
+	def build_remove_words(self):
+		"""
+		"""
+		begin = '('
+		end   = ')'
+		keepers = ['the', 'for', '-', 'of', 'or', 'New']
+		for award in self.awards:
+
+			begin += '|'.join([word for word in award.title.split(' ') if word not in keepers])
+
+		begin += end
+		return begin
 
 
 	def build_award_features(self):
@@ -269,13 +285,59 @@ class Ceremony(object):
 		return matches
 
 
-	def parse_tweets(self, tweets):
+	def consolidate_freqs(self, freqs):
 		"""
 
 		"""
-		print ("length of total tweets is {}".format(len(tweets)))
+		top_5 = freqs[:5]
+		rest  = freqs[5:]
+		consolidated = {}
+
+		for inst in top_5:
+			total = inst[1]
+
+			for sub_inst in rest:
+				if self.similar(sub_inst[0], inst[0]):
+					total += sub_inst[1]
+			consolidated[inst] = total
+		return consolidated
+
+
+	def similar(self, phrase1, phrase2, threshold=0.8):
+		"""
+		"""
+		total = 0
+		p1_len = len(phrase1)
+		p2_len = len(phrase2)
+		ratio = 0.0
+		if p1_len < p2_len:
+			p2_split = phrase2.split(' ')
+			for p in phrase1.split(' '):
+				if p in p2_split:
+					total += 1
+
+			ratio = float(total / p1_len)
+
+		else:
+			p1_split = phrase1.split(' ')
+			for p in phrase2.split(' '):
+				if p in p1_split:
+					total += 1
+
+			ratio = float(total / p2_len) 
+
+		return ratio >= threshold
+
+
+	def parse_tweets(self, tweets):
+		"""
+		used to analyze the set of tweets and try to populate the winner, nominees, and presenter attributes of 
+		each Award object in the Ceremony's awards attribute. 
+		"""
+
+		# print ("length of total tweets is {}".format(len(tweets)))
 		tweets = list(set(self.clean_words(tweets, 1, 1)))
-		print ("length of clean tweets is {}".format(len(tweets)))
+		# print ("length of clean tweets is {}".format(len(tweets)))
 
 
 		# pl_ratio = []
@@ -302,9 +364,9 @@ class Ceremony(object):
 					presenter = False
 
 					tweet_compact = ''.join(tweet.split(' '))
-					if re.search(nominee_words, tweet_compact):    nominee     = True
-					if re.search(winner_words, tweet_compact):     winner      = True
-					if re.search(presenter_words, tweet_compact):  presenter   = True
+					if re.search(nominee_words, tweet_compact, flags=re.IGNORECASE):    nominee     = True
+					if re.search(winner_words, tweet_compact, flags=re.IGNORECASE):     winner      = True
+					if re.search(presenter_words, tweet_compact, flags=re.IGNORECASE):  presenter   = True
 					
 
 					for name in names:
@@ -338,18 +400,20 @@ class Ceremony(object):
 
 			winner = sorted(award.winner.items(), key=itemgetter(1), reverse=True)
 			winner = filter(lambda w: not re.search(remove_words, w[0]), winner)
-			wns = [w[0] for w in winner[:5]]
-			print ('Winner is: {}'.format(winner[0][0]))
-
-			nominees = sorted(award.nominees.items(), key=itemgetter(1), reverse=True)
-			nominees = filter(lambda w: not re.search(remove_words, w[0]), nominees)
-			ns = [n[0] for n in nominees[:5]]
-			print ('Nominees are: {}'.format(ns))
+			winner = self.consolidate_freqs(winner)
+			wns = [w[0] for w in winner]
+			# print ('Winner is: {}'.format(winner[0][0]))
+			print ('Winner is: {}'.format(wns))
 			
-			presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
-			presenters = filter(lambda w: not re.search(remove_words, w[0]), presenters)
-			prs = [n[0] for n in presenters[:5]]
-			print ('Presenters are: {}'.format(prs))
+			# nominees = sorted(award.nominees.items(), key=itemgetter(1), reverse=True)
+			# nominees = filter(lambda w: not re.search(remove_words, w[0]), nominees)
+			# ns = [n[0] for n in nominees[:5]]
+			# print ('Nominees are: {}'.format(ns))
+
+			# presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
+			# presenters = filter(lambda w: not re.search(remove_words, w[0]), presenters)
+			# prs = [n[0] for n in presenters[:5]]
+			# print ('Presenters are: {}'.format(prs))
 
 
 
