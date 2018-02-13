@@ -51,6 +51,18 @@ suffixs = {				# dict used to convert year to word for url
 	3: "rd",
 }
 
+regexs = {
+
+	"name":  r'([A-Z][a-z]+(?=\s[A-Z])(?:\s[A-Z][a-z]+)+)'
+}
+
+
+nominee_words   = 'nom'
+winner_words    = '(congr|win|won)'
+presenter_words = '(pre|present)'
+remove_words    = '(Best|Golden|Globe|Actor|Actress|Picture|Motion|Award|Year)'
+
+
 
 class Ceremony(object):
 	"""
@@ -153,8 +165,8 @@ class Ceremony(object):
 		Then sets each Award object in self.awards list to have the associated features list. 
 		Used to find most important words in each award which is then used for matching tweets to associated awards.
 		"""
-
-		phrase_freqs = self.count_phrases(phrase_length=1)
+		award_names = [award.title for award in self.awards]
+		phrase_freqs = self.count_phrases(award_names, 1)
 
 
 		# converts the phrase_freqs dictionary into a sorted list in ascending order
@@ -203,14 +215,14 @@ class Ceremony(object):
 		return clean_words
 		
 
-	def count_phrases(self, phrase_length, stop_words=None):
+	def count_phrases(self, data, phrase_length, stop_words=None):
 		"""
 		Builds a frequency distrobution of all combinations of words of size phrase_length present in the
 		given list, if one of the words present is in the stop_words then it will not be considered.
 		"""
 		phrase_freqs = defaultdict(lambda: 0)
-		for i in range(len(self.awards)):
-			words = re.findall(r'[a-zA-Z]+', self.awards[i].title)
+		for i in range(len(data)):
+			words = re.findall(r'[a-zA-Z]+', data[i])
 
 			if stop_words != None:
 				words = self.remove_stop_words(words, stop_words)
@@ -247,14 +259,98 @@ class Ceremony(object):
 		return clean_data
 
 
-	def parse_tweets(tweets):
+	def keyword_search(self, keyword, data):
+		"""
+		"""
+		matches = []
+		for inst in data:
+			if re.search(keyword, inst, flags=re.I):
+				matches.append(inst)
+		return matches
+
+
+	def parse_tweets(self, tweets):
 		"""
 
 		"""
-		# for award_idx in range(len(self.awards)):
-		# 	for i in range(len(self.awards[award_idx].features_list)):
+		print ("length of total tweets is {}".format(len(tweets)))
+		tweets = list(set(self.clean_words(tweets, 1, 1)))
+		print ("length of clean tweets is {}".format(len(tweets)))
 
-		pass
+
+		# pl_ratio = []
+		# iterate over all features for each index
+		for award_idx in range(len(self.awards)):
+			associated_tweets = tweets
+
+			# if award_idx > 1: break
+
+			# for feature_idx in range(len(self.awards[award_idx].features_list)):
+			for feature_idx in range(2):
+				features_list = self.awards[award_idx].features_list
+				# feature = features_list[len(features_list) - feature_idx - 1]
+				feature = features_list[feature_idx]
+				associated_tweets = self.keyword_search(feature, associated_tweets)
+
+
+				# print ('Found {} associated_tweets for award {}'.format(len(associated_tweets), self.awards[award_idx].title.encode('utf-8')))
+
+				for tweet in associated_tweets:
+					names = re.findall(regexs["name"], tweet)
+					nominee = False
+					winner = False
+					presenter = False
+
+					tweet_compact = ''.join(tweet.split(' '))
+					if re.search(nominee_words, tweet_compact):    nominee     = True
+					if re.search(winner_words, tweet_compact):     winner      = True
+					if re.search(presenter_words, tweet_compact):  presenter   = True
+					
+
+					for name in names:
+						if winner:    self.awards[award_idx].winner[name] += 1
+						if nominee:   self.awards[award_idx].nominees[name] += 1
+						if presenter: self.awards[award_idx].presenters[name] += 1
+
+			# winner = ''
+			# pl_val = 0
+			# for pl in range(2,6):
+				# phrase_freqs = self.count_phrases(associated_tweets, pl)
+				# s_phrase_freqs = sorted(phrase_freqs.items(), key=itemgetter(1), reverse=True)
+				# print('freq distrobution for {}'.format(self.awards[award_idx].title.encode('utf-8')))
+				# for val, freq in s_phrase_freqs[10:]:
+				# 	print ('{} : {}'.format(val, freq))
+
+				# if s_phrase_freqs:
+				# 	curr_pl = s_phrase_freqs[0][1] / sum(phrase_freqs.values())
+				# 	# print ('current pl is {}'.format(curr_pl))
+				# 	pl_ratio.append(curr_pl)
+				# 	if pl_val < curr_pl:
+				# 			winner = s_phrase_freqs[0][0]
+				# 			pl_val = curr_pl
+			# if winner:
+			# 	print ('Found winner: {} for award {}'.format(winner, self.awards[award_idx].title.encode('utf-8')))
+
+
+		for award in self.awards:
+
+			print ('For award: {}'.format(award.title.encode('utf-8')))
+
+			winner = sorted(award.winner.items(), key=itemgetter(1), reverse=True)
+			winner = filter(lambda w: not re.search(remove_words, w[0]), winner)
+			wns = [w[0] for w in winner[:5]]
+			print ('Winner is: {}'.format(winner[0][0]))
+
+			nominees = sorted(award.nominees.items(), key=itemgetter(1), reverse=True)
+			nominees = filter(lambda w: not re.search(remove_words, w[0]), nominees)
+			ns = [n[0] for n in nominees[:5]]
+			print ('Nominees are: {}'.format(ns))
+			
+			presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
+			presenters = filter(lambda w: not re.search(remove_words, w[0]), presenters)
+			prs = [n[0] for n in presenters[:5]]
+			print ('Presenters are: {}'.format(prs))
+
 
 
 class Award(object):
@@ -263,11 +359,10 @@ class Award(object):
 	"""
 	def __init__(self, title):
 		self.title = title
-		self.presenters = []
-		self.nominees = []
-		self.winner = None
+		self.presenters = defaultdict(lambda: 0)
+		self.nominees = defaultdict(lambda: 0)
+		self.winner = defaultdict(lambda: 0)
 		self.features_list = []
-		self.confidence = 0
 
 
 def read_tweets():
@@ -282,7 +377,7 @@ def read_tweets():
 	tweets_json = json.load(f)
 	tweets = []
 	for tweet in tweets_json:
-		tweets.append(tweet)
+		tweets.append(tweet['text'])
 	return tweets
 
 
@@ -291,7 +386,8 @@ if __name__ == "__main__":
 	ceremony = Ceremony(YEAR)
 	ceremony.scrape_names()
 	ceremony.build_award_features()
-	# tweets = read_tweets()
-	# ceremony.parse_tweets(tweets)
+	tweets = read_tweets()
+	ceremony.parse_tweets(tweets)
 	print (ceremony)
+
 
