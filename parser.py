@@ -29,6 +29,7 @@ To Run:
 	>> python parser.py
 """
 
+import time
 import os
 import re
 from operator import itemgetter
@@ -56,15 +57,23 @@ regexs = {
 	"name":  		r'([A-Z][a-z]+(?=\s[A-Z])(?:\s[A-Z][a-z]+)+)',						# consecutive capitals
 	"name_special": r'([A-Za-z]+\s[A-Z][a-z][A-Za-z]+)', 								# special names like Connor McGregor
 	"title":		r'([A-Z][a-z]+(?=\s[A-Z])(?:\s[A-Z][a-z]+)+)(\s[a-z]+\s[A-Za-z]+)',	# consecutive capitals w/ lowercase word (i.e. The Shape of Water)
-	"hashtag":		r'(#[A-Za-z]+)'
+	"hashtag":		r'(#[A-Za-z]+)',
+	"apostrophe":   r'([A-Za-z]+\s[A-Za-z]+\'[a-z]\s[A-Za-z]+)'							# apostrophe i.e. The Handmaid's Tale
 }
 
 
-nominee_words   = '(nom|didnt|not|did not|didn\'t)'
-winner_words    = '(congr|win|won)'
-presenter_words = '(pres)'
-person_words    = '(Actor|Actress)'
-remove_person_words  = '(The|the|Limited|Role|Supporting|Series)'
+keywords = {
+	"person":		'(Actor|Actress)',
+	"nominee":  	'(nom|didnt|not|did not|didn\'t)',
+	"presenter":	'(pres|intro)',
+	"winner": 		'(congr|win|won)'
+}
+
+# nominee_words   = '(nom|didnt|not|did not|didn\'t)'
+# winner_words    = '(congr|win|won)'
+# presenter_words = '(pres)'
+# person_words    = '(Actor|Actress)'
+
 
 
 
@@ -82,8 +91,8 @@ class Ceremony(object):
 		self.hosts = []
 		self.name = ''
 		self.scrape_names()
-		# self.remove_award_words = self.build_remove_award_words()
 		self.remove_award_words = '(comedy|musical|TV|drama)'
+		self.remove_person_words  = '(The|the|Limited|Role|Supporting|Series)'
 		self.remove_words = '(Best|Golden|Globe|Actor|Actress|Picture|Motion|Award|Year|Film|Animated|Feature)'
 
 		# print ("setting remove words to be {}".format(self.remove_words.encode('utf-8')))
@@ -185,15 +194,15 @@ class Ceremony(object):
 		return begin
 
 
-	def add_remove_words(self, addition):
+	def add_remove_person_words(self, addition):
 		"""
 		append all words in the additions text to the remove words regex
 		"""
 		add = '|'.join(addition.split(' '))
-		self.remove_words = self.remove_words[:-1]
-		self.remove_words += '|'
-		self.remove_words += add
-		self.remove_words += ')'
+		self.remove_person_words = self.remove_words[:-1]
+		self.remove_person_words += '|'
+		self.remove_person_words += add
+		self.remove_person_words += ')'
 
 
 	def build_award_features(self):
@@ -296,17 +305,21 @@ class Ceremony(object):
 		return clean_data
 
 
-	def keyword_search(self, keyword, data):
+	def keywords_search(self, keywords, data):
 		"""
+		searches for all keywords in the list of keywords
+		returns a subset of the data the has ALL keywords present in it
+		the data refers to tweets
 		"""
 		matches = []
 		for inst in data:
-			if re.search(keyword, inst, flags=re.IGNORECASE):
-				matches.append(inst)
+			for keyword in keywords:
+				if all([re.search(keyword, inst, flags=re.IGNORECASE) for keyword in keywords]):
+					matches.append(inst)
 		return matches
 
 
-	def consolidate_freqs(self, freqs, length=5):
+	def consolidate_freqs(self, freqs, length=7):
 		"""
 		
 		"""
@@ -324,6 +337,29 @@ class Ceremony(object):
 		consolidated = sorted(consolidated.items(), key=itemgetter(1), reverse=True)
 
 		return consolidated
+
+
+	def compact_top(self, top, threshold=0.8):
+		"""
+
+		"""
+		compact = []
+		for i in range(len(top)):
+			val = top[i]
+			new_val = val[0]
+			total = val[1]
+			for j, item in enumerate(top[i+1:]):
+				if self.similar(val[0], item[0], threshold=threshold):
+					total += item[1]
+					if len(new_val) < len(item[0]):
+						new_val = item[0]
+
+			compact.append((new_val, total))
+
+		s = sorted(compact, key=itemgetter(1), reverse=True)
+		# print ('top is {}'.format(top))
+		# print ('s is {}'.format(s))
+		return s
 
 
 	def similar(self, phrase1, phrase2, threshold=0.8):
@@ -361,90 +397,92 @@ class Ceremony(object):
 		each Award object in the Ceremony's awards attribute. 
 		"""
 
-		# print ("length of total tweets is {}".format(len(tweets)))
 		tweets = list(set(tweets))
-		# print ("length of clean tweets is {}".format(len(tweets)))
-
+		num_feats_enforce = 2
 
 		# iterate over all features for each index
 		for award_idx in range(len(self.awards)):
 			
 			associated_tweets = tweets
 
-			# for feature_idx in range(len(self.awards[award_idx].features_list)):
-			for feature_idx in range(4):
+			for feature_idx in range(1):
 				features_list = self.awards[award_idx].features_list
-				# feature = features_list[len(features_list) - feature_idx - 1]
-				feature = features_list[feature_idx]
-				associated_tweets = self.keyword_search(feature, associated_tweets)
+				associated_tweets = self.keywords_search(features_list[:num_feats_enforce], associated_tweets)
 
 
 				# print ('Found {} associated_tweets for award {}'.format(len(associated_tweets), self.awards[award_idx].title.encode('utf-8')))
 
 				for tweet in associated_tweets:
-					names 			= re.findall(regexs["name"], tweet)
-					names_special	= re.findall(regexs["name_special"], tweet)
-					titles 			= re.findall(regexs["title"], tweet)
-					hashtags		= re.findall(regexs["hashtag"], tweet)
 
-					# print (hashtags)
-					hashtags_clean = []
-					for hashtag in hashtags:
-						hashtag = hashtag[1:]
-						hashtags_clean.extend(re.findall('[A-Z][^A-Z]*', hashtag))
-
-					# build possible names & titles 
-					candidates = []
-					for list_ in [names, names_special, titles, hashtags_clean]:
-						if list_ != None:
-							candidates.extend(list_)
-
-					# clean all possible names & titles
-					clean_cands = []
-					for cand in candidates:
-						# print (cand)
-						if isinstance(cand, tuple):
-							clean_cands.append(cand[0] + cand[1])
-							# clean_cands.append(cand[1])
-						else:
-							clean_cands.append(cand)
-
-					candidates = clean_cands
-
-
-					# check what domain the tweet was referencing 
+					
 					nominee   = False
 					winner    = False
 					presenter = False
 
-					tweet_compact = ''.join(tweet.split(' '))
-					if re.search(nominee_words, tweet_compact, flags=re.IGNORECASE):    
-						# print ('possible nom tweet: {}'.format(tweet.encode('utf-8')))
-						nominee   = True
-					if re.search(winner_words, tweet_compact, flags=re.IGNORECASE):     
-						# print ('possible winner tweet: {}'.format(tweet.encode('utf-8')))
-						winner   = True
-					if re.search(presenter_words, tweet_compact, flags=re.IGNORECASE):  
-						# print ('possible presenter tweet: {}'.format(tweet.encode('utf-8')))
-						presenter   = True
-					
+					# check what subject the tweet was referencing 
+					if re.search(keywords["nominee"],   tweet, flags=re.IGNORECASE): nominee    = True
+					if re.search(keywords["winner"],    tweet, flags=re.IGNORECASE): winner     = True
+					if re.search(keywords["presenter"], tweet, flags=re.IGNORECASE): presenter  = True
 
+					# only want to extract Names & Titles if tweet has possible value
+					if (nominee or winner or presenter):
+						names 			= re.findall(regexs["name"], tweet)
+						names_special	= re.findall(regexs["name_special"], tweet)
+						titles 			= re.findall(regexs["title"], tweet)
+						hashtags		= re.findall(regexs["hashtag"], tweet)
+						apostrophes     = re.findall(regexs["apostrophe"], tweet)
+
+						# extract information from hashtags
+						hashtags_clean = []
+						for hashtag in hashtags:
+							hashtag = hashtag[1:]
+							hashtags_clean.extend(re.findall('[A-Z][^A-Z]*', hashtag))	# Split capital letters DunkirkMovie --> Dunkirk Movie
+
+						# build possible names & titles 
+						candidates = []
+						for list_ in [names, names_special, titles, hashtags_clean, apostrophes]:
+							if list_ != None:
+								candidates.extend(list_)
+
+						# clean all possible names & titles
+						clean_cands = []
+						for cand in candidates:
+							if isinstance(cand, tuple):
+								clean_cands.append(cand[0] + cand[1])
+							else:
+								clean_cands.append(cand)
+
+						candidates = clean_cands
+
+					
+					# update awards frequency dictionaries 
 					for cand in candidates:
 						if winner:    self.awards[award_idx].winner[cand] += 1
 						if nominee:   self.awards[award_idx].nominees[cand] += 1
 						if presenter: self.awards[award_idx].presenters[cand] += 1
 
+
+		
+	
+
+	def build_results(self):
+		"""
+		Use dictionaries for each awards possible  Winners, Presenters and Nominees 
+		and extract most likely candidates
+		"""
 		print ("----------------------------------")
 		for award in self.awards:
 
-			print ('Awards top 4 features is {}'.format(award.features_list[:4]))
+			# print ('Awards top 4 features is {}'.format(award.features_list[:4]))
 
 			person = False
-			person = bool(re.search(person_words, award.title, flags=re.IGNORECASE))
+			person = bool(re.search(keywords["person"], award.title, flags=re.IGNORECASE))
 
 			print ('For award: {}'.format(award.title.encode('utf-8')))
 
-			remove_award_words = '(' + '|'.join(award.features_list[:3]) + ')'
+			remove_award_words = '(' + '|'.join(award.features_list[:3]) + ')' # we dont want the common award words adding noise to names & titles
+
+			# print ('Remove award words is {}'.format(remove_award_words))
 
 
 			#
@@ -454,21 +492,26 @@ class Ceremony(object):
 			winner = sorted(award.winner.items(), key=itemgetter(1), reverse=True)
 			winner = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), winner)
 			
-
 			if person:
-				winner = filter(lambda w: not re.search(remove_person_words, w[0], flags=re.IGNORECASE), winner)
+				winner = filter(lambda w: not re.search(self.remove_person_words, w[0], flags=re.IGNORECASE), winner)
 				winner = filter(lambda w: len(w[0].split(' ')) == 2, winner)
 			
-			# wns = [w[0] for w in winner[:20]]
-			# print (wns)
-			winner = self.consolidate_freqs(winner)
 			winner = filter(lambda w: not re.search(remove_award_words, w[0], flags=re.IGNORECASE), winner)
+
+
+			winner = self.consolidate_freqs(winner)
+			if person: 	winner = self.compact_top(winner, threshold=0.5)
+			else: 		winner = self.compact_top(winner)
+			
+
 			wns = [w[0] for w in  winner]
 			print ('Winner is: {}'.format(winner))
 
-			# if not person:
-			# 	self.add_remove_words(wns[0])
-				# print ('remove_words is now {}'.format(self.remove_words))
+
+			# If award is for a film and not a person, add it to remove person words to reduce noise from titles like Lady Bird
+			if not person:
+				self.add_remove_person_words(wns[0])
+				print ('remove_words is now {}'.format(self.remove_person_words))
 
 
 			#
@@ -477,9 +520,13 @@ class Ceremony(object):
 
 			nominees = sorted(award.nominees.items(), key=itemgetter(1), reverse=True)
 			nominees = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), nominees)
-			
-			nominees = self.consolidate_freqs(nominees)
 			nominees = filter(lambda w: not re.search(remove_award_words, w[0], flags=re.IGNORECASE), nominees)
+
+
+			nominees = self.consolidate_freqs(nominees)
+			if person: 	nominees = self.compact_top(nominees, threshold=0.5)
+			else: 		nominees = self.compact_top(nominees)
+			
 			ns = [n[0] for n in nominees]
 			print ('Nominees are: {}'.format(nominees))
 
@@ -491,15 +538,17 @@ class Ceremony(object):
 
 			presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
 			presenters = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), presenters)
-			# presenters = filter(lambda w: not re.search(self.remove_award_words, w[0]), presenters)
+			presenters = filter(lambda w: not re.search(self.remove_award_words, w[0]), presenters)
+
 
 			presenters = self.consolidate_freqs(presenters)
+			presenters = self.compact_top(presenters, threshold=0.5) 		# presenters are always people
 			prs = [pr[0] for pr in presenters]
 			print ('Presenters are: {}'.format(presenters))
 
 			
 			print ("----------------------------------")
-
+		
 
 
 class Award(object):
@@ -530,15 +579,36 @@ def read_tweets():
 	return tweets
 
 
+def timeit(method):
+    def timed(*args, **kw):
+        ts = time.time()
+        result = method(*args, **kw)
+        te = time.time()
+        if 'log_time' in kw:
+            name = kw.get('log_name', method.__name__.upper())
+            kw['log_time'][name] = int((te - ts) * 1000)
+        else:
+            print '%r  %2.2f s' % \
+                (method.__name__, (te - ts))
+        return result
+    return timed
 
-if __name__ == "__main__":
+@timeit
+def main():
+	"""
+	"""
 	ceremony = Ceremony(YEAR)
 	ceremony.scrape_names()
 	ceremony.build_award_features()
 	tweets = read_tweets()
 	ceremony.parse_tweets(tweets)
+	ceremony.build_results()
 	print (ceremony)
 
+
+if __name__ == "__main__":
+	
+	main()
 	# print (ceremony.similar("The Shape of Water", "of Water"))
 	# print (ceremony.similar("The Shape of Water", "The Shape"))
 
