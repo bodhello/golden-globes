@@ -344,6 +344,7 @@ class Ceremony(object):
 
 		"""
 		compact = []
+		duplicates = []
 		for i in range(len(top)):
 			val = top[i]
 			new_val = val[0]
@@ -353,7 +354,10 @@ class Ceremony(object):
 					total += item[1]
 					if len(new_val) < len(item[0]):
 						new_val = item[0]
+				duplicates.append(new_val)
 
+			if new_val in duplicates:
+				continue
 			compact.append((new_val, total))
 
 		s = sorted(compact, key=itemgetter(1), reverse=True)
