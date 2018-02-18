@@ -357,9 +357,9 @@ class Ceremony(object):
 					total += item[1]
 					if len(new_val) < len(item[0]):
 						new_val = item[0]
-				duplicates.append(new_val)
+					duplicates.append(item[0])
 
-			if new_val in duplicates:
+			if new_val[0] in duplicates:
 				continue
 			compact.append((new_val, total))
 
