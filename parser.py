@@ -64,10 +64,13 @@ regexs = {
 
 keywords = {
 	"person":		'(Actor|Actress)',
-	"nominee":  	'(nom|didnt|not|did not|didn\'t)',
-	"presenter":	'(pres|intro)',
-	"winner": 		'(congr|win|won)'
+	"nominee":  	'(nom|didnt|not|did not|didn\'t|should|wow|believe)',
+	"presenter":	'(pres|intro|)',
+	"winner": 		'(congr|win|won)',
+	"TV":			'(tele)'
 }
+
+stop_words = ["The"]
 
 # nominee_words   = '(nom|didnt|not|did not|didn\'t)'
 # winner_words    = '(congr|win|won)'
@@ -319,7 +322,7 @@ class Ceremony(object):
 		return matches
 
 
-	def consolidate_freqs(self, freqs, length=7):
+	def consolidate_freqs(self, freqs, length=10):
 		"""
 		
 		"""
@@ -398,7 +401,7 @@ class Ceremony(object):
 		"""
 
 		tweets = list(set(tweets))
-		num_feats_enforce = 2
+		num_feats_enforce = 3
 
 		# iterate over all features for each index
 		for award_idx in range(len(self.awards)):
@@ -407,6 +410,16 @@ class Ceremony(object):
 
 			for feature_idx in range(1):
 				features_list = self.awards[award_idx].features_list
+
+				# set the number of features we want to enforce
+				if re.search(keywords["TV"], self.awards[award_idx].title, flags=re.IGNORECASE): 
+					features_list = ["(tele|TV)"] + features_list
+					# num_feats_enforce = 1
+				# else: num_feats_enforce = 3
+
+				# print ("Top 4 features_list are: {}".format(features_list[:4]))
+
+				# fins all tweets referencing this award 
 				associated_tweets = self.keywords_search(features_list[:num_feats_enforce], associated_tweets)
 
 
@@ -455,12 +468,11 @@ class Ceremony(object):
 						candidates = clean_cands
 
 					
-					# update awards frequency dictionaries 
-					for cand in candidates:
-						if winner:    self.awards[award_idx].winner[cand] += 1
-						if nominee:   self.awards[award_idx].nominees[cand] += 1
-						if presenter: self.awards[award_idx].presenters[cand] += 1
-
+						# update awards frequency dictionaries 
+						for cand in candidates:
+							if winner:    self.awards[award_idx].winner[cand] += 1
+							if nominee:   self.awards[award_idx].nominees[cand] += 1
+							if presenter: self.awards[award_idx].presenters[cand] += 1
 
 		
 	
@@ -474,15 +486,12 @@ class Ceremony(object):
 		for award in self.awards:
 
 			# print ('Awards top 4 features is {}'.format(award.features_list[:4]))
+			print ('For award: {}'.format(award.title.encode('utf-8')))
 
 			person = False
 			person = bool(re.search(keywords["person"], award.title, flags=re.IGNORECASE))
 
-			print ('For award: {}'.format(award.title.encode('utf-8')))
-
 			remove_award_words = '(' + '|'.join(award.features_list[:3]) + ')' # we dont want the common award words adding noise to names & titles
-
-			# print ('Remove award words is {}'.format(remove_award_words))
 
 
 			#
@@ -491,6 +500,7 @@ class Ceremony(object):
 
 			winner = sorted(award.winner.items(), key=itemgetter(1), reverse=True)
 			winner = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), winner)
+			winner = filter(lambda w: not w[0] in stop_words, winner)
 			
 			if person:
 				winner = filter(lambda w: not re.search(self.remove_person_words, w[0], flags=re.IGNORECASE), winner)
@@ -498,20 +508,20 @@ class Ceremony(object):
 			
 			winner = filter(lambda w: not re.search(remove_award_words, w[0], flags=re.IGNORECASE), winner)
 
-
+			# print ('Before winner is: {}'.format(winner[:10]))
 			winner = self.consolidate_freqs(winner)
+			wns = [w[0] for w in winner]
 			if person: 	winner = self.compact_top(winner, threshold=0.5)
 			else: 		winner = self.compact_top(winner)
 			
 
-			wns = [w[0] for w in  winner]
-			print ('Winner is: {}'.format(winner))
+			print ('Winner is: {}'.format(winner[0][0]))
 
 
 			# If award is for a film and not a person, add it to remove person words to reduce noise from titles like Lady Bird
 			if not person:
 				self.add_remove_person_words(wns[0])
-				print ('remove_words is now {}'.format(self.remove_person_words))
+				# print ('remove_words is now {}'.format(self.remove_person_words))
 
 
 			#
@@ -519,8 +529,9 @@ class Ceremony(object):
 			#
 
 			nominees = sorted(award.nominees.items(), key=itemgetter(1), reverse=True)
-			nominees = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), nominees)
+			nominees = filter(lambda w: not re.search(self.remove_words, w[0],  flags=re.IGNORECASE), nominees)
 			nominees = filter(lambda w: not re.search(remove_award_words, w[0], flags=re.IGNORECASE), nominees)
+			nominees = filter(lambda w: not w[0] in stop_words, nominees)
 
 
 			nominees = self.consolidate_freqs(nominees)
@@ -528,7 +539,7 @@ class Ceremony(object):
 			else: 		nominees = self.compact_top(nominees)
 			
 			ns = [n[0] for n in nominees]
-			print ('Nominees are: {}'.format(nominees))
+			print ('Nominees are: {}'.format(ns[:4]))
 
 
 			
@@ -537,14 +548,16 @@ class Ceremony(object):
 			#
 
 			presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
-			presenters = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), presenters)
-			presenters = filter(lambda w: not re.search(self.remove_award_words, w[0]), presenters)
+			presenters = filter(lambda w: not re.search(self.remove_words,       w[0], flags=re.IGNORECASE), presenters)
+			presenters = filter(lambda w: not re.search(self.remove_award_words, w[0], flags=re.IGNORECASE), presenters)
+			presenters = filter(lambda w: not w[0] in stop_words, presenters)
 
 
 			presenters = self.consolidate_freqs(presenters)
 			presenters = self.compact_top(presenters, threshold=0.5) 		# presenters are always people
+
 			prs = [pr[0] for pr in presenters]
-			print ('Presenters are: {}'.format(presenters))
+			print ('Presenters are: {}'.format(prs[:2]))
 
 			
 			print ("----------------------------------")
