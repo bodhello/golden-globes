@@ -65,12 +65,13 @@ regexs = {
 keywords = {
 	"person":		'(Actor|Actress)',
 	"nominee":  	'(nom|didnt|not|did not|didn\'t|should|wow|believe)',
-	"presenter":	'(pres|intro|)',
+	"presenter":	'(present)',
 	"winner": 		'(congr|win|won)',
 	"TV":			'(tele)'
 }
 
 stop_words = ["The"]
+stop_win_words = ["The"]
 
 # nominee_words   = '(nom|didnt|not|did not|didn\'t)'
 # winner_words    = '(congr|win|won)'
@@ -439,7 +440,8 @@ class Ceremony(object):
 					# check what subject the tweet was referencing 
 					if re.search(keywords["nominee"],   tweet, flags=re.IGNORECASE): nominee    = True
 					if re.search(keywords["winner"],    tweet, flags=re.IGNORECASE): winner     = True
-					if re.search(keywords["presenter"], tweet, flags=re.IGNORECASE): presenter  = True
+					if re.search(keywords["presenter"], tweet, flags=re.IGNORECASE) and re.search("awards_watch", tweet, flags=re.IGNORECASE):
+						presenter  = True
 
 					# only want to extract Names & Titles if tweet has possible value
 					if (nominee or winner or presenter):
@@ -520,6 +522,7 @@ class Ceremony(object):
 			
 
 			print ('Winner is: {}'.format(winner[0][0]))
+			stop_win_words.append(winner[0][0]);
 
 
 			# If award is for a film and not a person, add it to remove person words to reduce noise from titles like Lady Bird
@@ -552,16 +555,16 @@ class Ceremony(object):
 			#
 
 			presenters = sorted(award.presenters.items(), key=itemgetter(1), reverse=True)
-			presenters = filter(lambda w: not re.search(self.remove_words,       w[0], flags=re.IGNORECASE), presenters)
+			presenters = filter(lambda w: not re.search(self.remove_words, w[0], flags=re.IGNORECASE), presenters)
 			presenters = filter(lambda w: not re.search(self.remove_award_words, w[0], flags=re.IGNORECASE), presenters)
-			presenters = filter(lambda w: not w[0] in stop_words, presenters)
+			presenters = filter(lambda w: not w[0] in stop_win_words, presenters)
 
 
 			presenters = self.consolidate_freqs(presenters)
 			presenters = self.compact_top(presenters, threshold=0.5) 		# presenters are always people
 
 			prs = [pr[0] for pr in presenters]
-			print ('Presenters are: {}'.format(prs[:2]))
+			print ('Presenters are: {}'.format(prs[:4]))
 
 			
 			print ("----------------------------------")
