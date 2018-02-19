@@ -58,7 +58,8 @@ regexs = {
 	"name_special": r'([A-Za-z]+\s[A-Z][a-z][A-Za-z]+)', 								# special names like Connor McGregor
 	"title":		r'([A-Z][a-z]+(?=\s[A-Z])(?:\s[A-Z][a-z]+)+)(\s[a-z]+\s[A-Za-z]+)',	# consecutive capitals w/ lowercase word (i.e. The Shape of Water)
 	"hashtag":		r'(#[A-Za-z]+)',
-	"apostrophe":   r'([A-Za-z]+\s[A-Za-z]+\'[a-z]\s[A-Za-z]+)'							# apostrophe i.e. The Handmaid's Tale
+	"apostrophe":   r'([A-Za-z]+\s[A-Za-z]+\'[a-z]\s[A-Za-z]+)'	,						# apostrophe i.e. The Handmaid's Tale
+	"presented":   r'(presented)(by)([A-Z][a-z]+(?=\s[A-Z])(?:\s[A-Z][a-z]+)+)'
 }
 
 
@@ -450,6 +451,7 @@ class Ceremony(object):
 						titles 			= re.findall(regexs["title"], tweet)
 						hashtags		= re.findall(regexs["hashtag"], tweet)
 						apostrophes     = re.findall(regexs["apostrophe"], tweet)
+						presented = re.findall(regexs["presented"], tweet)
 
 						# extract information from hashtags
 						hashtags_clean = []
@@ -478,7 +480,16 @@ class Ceremony(object):
 						for cand in candidates:
 							if winner:    self.awards[award_idx].winner[cand] += 1
 							if nominee:   self.awards[award_idx].nominees[cand] += 1
-							if presenter: self.awards[award_idx].presenters[cand] += 1
+							# if presenter: self.awards[award_idx].presenters[cand] += 1
+
+						# attempt presenter logging
+						presents = []
+						for list_ in [presented]:
+							if list_ != None:
+								presents.extend(list_)
+
+						for pres in presents:
+							self.awards[award_idx].presenters[pres] += 1
 
 		
 	
